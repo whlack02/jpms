@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>장애이해퀴즈</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
+  * { box-sizing: border-box; }
+  :root{
+    --bg1:#071026; --bg2:#0b1220; --accent:#2dd4bf; --accent-dark:#20b8a7;
+    --text:#e6eef8; --muted:#9fb0d4; --success:#22c55e; --danger:#ef4444; --warn:#f97316;
+    --maxWidth:820px;
+  }
+  html,body{height:100%}
+  body {
+    margin: 0; min-height: 100vh; font-family: 'Inter', sans-serif;
+    background: linear-gradient(180deg,var(--bg1) 0%, var(--bg2) 100%);
+    color: var(--text); display: flex; flex-direction: column; align-items: center;
+    padding: 48px 20px 20px;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* 컨테이너 공통 */
+  .center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: var(--maxWidth);
+    margin: 0 auto;
+    padding: 12px;
+  }
+
+  h1 {
+    margin: 0 0 18px 0;
+    font-size: clamp(1.6rem, 4.5vw, 2.4rem);
+    text-align: center;
+    line-height:1.1;
+  }
+
+  button {
+    cursor: pointer;
+    border-radius: 10px;
+    border: none;
+    padding: 14px 20px;
+    font-weight: 700;
+    font-size: clamp(1rem, 3.5vw, 1.1rem);
+    background: var(--accent);
+    color: #042020;
+    transition: background-color 0.18s ease, transform 0.08s ease;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+    min-height:44px;
+  }
+  button:active { transform: translateY(1px); }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled {
+    background: #999;
+    cursor: not-allowed;
+  }
+  .mutedBtn {
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font-weight:600;
+  }
+
+  .hidden { display: none; }
+
+  /* 진행도 바 스타일 */
+  #progressBar {
+    width: 100%;
+    max-width: var(--maxWidth);
+    height: 22px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    overflow-x: auto;
+    padding-bottom:6px;
+  }
+  #progressBar::-webkit-scrollbar{height:8px}
+  #progressBar::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:8px}
+
+  .progressStep {
+    flex: 1 0 20px; /* 유동적 폭, 최소 20px */
+    background: rgba(255,255,255,0.06);
+    border-radius: 12px;
+    transition: background-color 0.18s ease;
+    min-width:24px;
+  }
+  .progressStep.correct { background: var(--success); }
+  .progressStep.incorrect { background: var(--danger); }
+  .progressStep.neutral { background: var(--warn); }
+
+  /* 퀴즈 영역 */
+  #quizScreen {
+    width: 100%;
+    max-width: var(--maxWidth);
+    padding: 12px;
+    margin-top: 6px;
+  }
+  #questionNumber {
+    font-weight: 700;
+    font-size: clamp(0.95rem, 2.8vw, 1.2rem);
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  #questionText {
+    font-size: clamp(1.1rem, 4vw, 1.6rem);
+    margin-bottom: 12px;
+    min-height: 68px;
+  }
+
+  /* 보기 그리드 */
+  #choicesGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .choice {
+    background: rgba(255,255,255,0.03);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 12px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    user-select: none;
+    transition: border-color 0.18s ease, background 0.18s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: clamp(0.95rem, 3.2vw, 1.05rem);
+    min-height:56px;
+  }
+  .choice:focus { outline: 3px solid rgba(255,255,255,0.06); outline-offset:2px; }
+  .choice img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    display:block;
+  }
+  .choice.correct {
+    border-color: var(--success);
+    background: rgba(34,197,94,0.12);
+  }
+  .choice.incorrect {
+    border-color: var(--danger);
+    background: rgba(239,68,68,0.08);
+  }
+
+  #noAnswerMsg {
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 0.95rem;
+    min-height: 22px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  #explanationMsg {
+    color: var(--success);
+    font-weight: 700;
+    font-size: 1rem;
+    min-height: 24px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  #controls {
+    display:flex;
+    gap:10px;
+    justify-content: space-between;
+    align-items: center;
+    width:100%;
+  }
+  #nextBtn {
+    margin-left: auto;
+  }
+
+  /* 종료 화면 */
+  #endScreen {
+    font-size: clamp(1rem, 3.2vw, 1.6rem);
+    font-weight: 700;
+    text-align: center;
+  }
+  #scoreDisplay {
+    margin-top: 14px;
+    font-size: 1.05rem;
+    color: #a7d129;
+  }
+
+  /* 모바일 전용 조정 */
+  @media (max-width: 600px) {
+    body { padding: 28px 14px 18px; }
+    #progressBar { height:14px; gap:6px; margin-bottom:12px; }
+    .center { padding:8px; }
+    #choicesGrid { grid-template-columns: 1fr; }
+    button { width: 100%; padding: 12px 16px; }
+    #controls { flex-direction: column-reverse; align-items: stretch; gap:8px; }
+    #nextBtn { width: 100%; }
+    .choice { min-height:64px; padding:14px; }
+  }
+
+  @media (min-width: 900px) {
+    #choicesGrid { grid-template-columns: repeat(2, 1fr); }
+    #progressBar { max-width: 820px; }
+  }
+
+  /* 작은 기기 세부 */
+  @media (max-width: 380px) {
+    h1 { font-size: 1.5rem; }
+    #questionText { font-size: 1.05rem; }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- 시작 화면 -->
+<div id="startScreen" class="center">
+  <h1>장애이해퀴즈</h1>
+  <div style="width:100%;max-width:420px;">
+    <button id="startBtn">시작</button><br><br>
+    <button id="exitStartBtn" class="mutedBtn" aria-label="나가기">나가기</button>
+  </div>
+</div>
+
+<!-- 퀴즈 화면 -->
+<div id="quizScreen" class="hidden center" aria-live="polite">
+  <!-- 진행도 바 -->
+  <div id="progressBar" aria-label="문제 진행도"></div>
+
+  <div id="questionNumber" aria-hidden="false"></div>
+  <div id="questionText"></div>
+  <div id="choicesGrid" role="list"></div>
+  <div id="noAnswerMsg" role="status" aria-live="polite"></div>
+  <div id="explanationMsg" role="status" aria-live="polite"></div>
+
+  <div id="controls" style="margin-top:6px;">
+    <div style="flex:1"></div>
+    <button id="nextBtn" disabled>다음</button>
+  </div>
+</div>
+
+<!-- 종료 화면 -->
+<div id="endScreen" class="center hidden">
+  <div>수고하셨습니다</div>
+  <div id="scoreDisplay"></div>
+  <div style="width:100%;max-width:420px;margin-top:14px;">
+    <button id="restartBtn" style="margin-top:6px;">처음으로</button><br><br>
+    <button id="exitEndBtn" class="mutedBtn">나가기</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const startScreen = document.getElementById('startScreen');
+  const quizScreen = document.getElementById('quizScreen');
+  const endScreen = document.getElementById('endScreen');
+
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  const questionNumberEl = document.getElementById('questionNumber');
+  const questionTextEl = document.getElementById('questionText');
+  const choicesGrid = document.getElementById('choicesGrid');
+  const noAnswerMsg = document.getElementById('noAnswerMsg');
+  const explanationMsg = document.getElementById('explanationMsg');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const progressBar = document.getElementById('progressBar');
+
+  const exitStart = document.getElementById('exitStartBtn');
+  const exitEnd = document.getElementById('exitEndBtn');
+
+  exitStart.addEventListener('click', () => { window.location.href = 'mainroom.html'; });
+  exitEnd.addEventListener('click', () => { window.location.href = 'mainroom.html'; });
+
+  let questions = [];
+  let currentIndex = 0;
+  let selectedChoiceIndex = null;
+  let answered = false;
+  let score = 0;
+
+  const explanations = {
+    0: { 1: '틀렸습니다. 수어에도 지역마다 사투리가 있습니다.' },
+    1: { 0: '틀렸습니다. 농인에게도 다양한 대화 방법이 있습니다.' },
+    2: {
+      0: '틀렸습니다. "장애우"는 의존적인 표현으로 인식되어 사용하지 않습니다.',
+      1: '틀렸습니다. "장애우"는 의존적인 표현으로 인식되어 사용하지 않습니다.',
+      3: '틀렸습니다. "장애인"이 맞는 표현입니다.'
+    },
+    4: {
+      0: '틀렸습니다. 장애인의 날은 4월 20일입니다.',
+      2: '틀렸습니다. 장애인의 날은 4월 20일입니다.',
+      3: '틀렸습니다. 장애인의 날은 4월 20일입니다.'
+    },
+    5: {
+      0: '틀렸습니다. 시각장애는 선천적 또는 후천적으로 모두 발생할 수 있습니다.'
+    },
+    6: {
+      0: '틀렸습니다. 안내견에게 간식을 주면 안내견의 집중도가 흐려질 수 있습니다.'
+    }
+  };
+
+  let progressStates = [];
+
+  function setQuestions(qs) {
+    questions = qs;
+    progressStates = Array(questions.length).fill('');
+  }
+
+  function updateProgressBar() {
+    progressBar.innerHTML = '';
+    for(let i = 0; i < questions.length; i++) {
+      const step = document.createElement('div');
+      step.classList.add('progressStep');
+      if(progressStates[i] === 'correct') {
+        step.classList.add('correct');
+      } else if(progressStates[i] === 'incorrect') {
+        step.classList.add('incorrect');
+      } else if(progressStates[i] === 'neutral') {
+        step.classList.add('neutral');
+      }
+      progressBar.appendChild(step);
+    }
+  }
+
+  function showStartScreen() {
+    startScreen.classList.remove('hidden');
+    quizScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    currentIndex = 0;
+    selectedChoiceIndex = null;
+    answered = false;
+    nextBtn.disabled = true;
+    nextBtn.textContent = '다음';
+    noAnswerMsg.textContent = '';
+    explanationMsg.textContent = '';
+    score = 0;
+    scoreDisplay.textContent = '';
+    progressStates = Array(questions.length).fill('');
+    updateProgressBar();
+  }
+
+  function showQuizScreen() {
+    startScreen.classList.add('hidden');
+    quizScreen.classList.remove('hidden');
+    endScreen.classList.add('hidden');
+    updateProgressBar();
+    renderQuestion();
+    // 모바일에서 첫 보기로 스크롤 방지용 포커스 제거
+    document.activeElement && document.activeElement.blur();
+  }
+
+  function showEndScreen() {
+    startScreen.classList.add('hidden');
+    quizScreen.classList.add('hidden');
+    endScreen.classList.remove('hidden');
+
+    // 4번 문제(인덱스 3) 제외한 맞은 개수 계산
+    let countCorrectExcept4 = 0;
+    for(let i=0; i < progressStates.length; i++) {
+      if(i === 3) continue; // 4번 문제 제외
+      if(progressStates[i] === 'correct') countCorrectExcept4++;
+    }
+
+    scoreDisplay.textContent = `6문제 중 맞은 개수: ${countCorrectExcept4} / 6`;
+  }
+
+  function clearChoices() {
+    choicesGrid.innerHTML = '';
+    noAnswerMsg.textContent = '';
+    explanationMsg.textContent = '';
+  }
+
+  function renderQuestion() {
+    const q = questions[currentIndex];
+    questionNumberEl.textContent = `문제 ${currentIndex + 1}`;
+    questionTextEl.textContent = q.question;
+
+    clearChoices();
+
+    q.choices.forEach((choice, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.type = 'button';
+      btn.setAttribute('role', 'listitem');
+      btn.tabIndex = 0;
+
+      if (typeof choice === 'string') {
+        btn.textContent = choice;
+      } else if (typeof choice === 'object' && choice.img) {
+        // 이미지가 없을 경우 대체 텍스트 보여주기
+        const alt = choice.text || ('보기 ' + (i+1));
+        btn.innerHTML = `
+          <img src="${choice.img}" alt="${alt}" />
+          <div>${choice.text || ''}</div>
+        `;
+      }
+
+      const onSelect = () => onChoiceClick(i, btn);
+      btn.addEventListener('click', onSelect);
+      btn.addEventListener('touchstart', e => {
+        // 모바일에서 클릭 후 포커스 문제 방지
+        e.preventDefault();
+        onSelect();
+      }, {passive:false});
+
+      choicesGrid.appendChild(btn);
+    });
+
+    selectedChoiceIndex = null;
+    answered = false;
+    nextBtn.disabled = true;
+    nextBtn.textContent = currentIndex === questions.length - 1 ? '제출' : '다음';
+
+    noAnswerMsg.textContent = '';
+    explanationMsg.textContent = '';
+    // 스크롤이 길어질 수 있으므로 상단으로 이동
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function onChoiceClick(i, btn) {
+    if (answered) return;
+
+    selectedChoiceIndex = i;
+    answered = true;
+    nextBtn.disabled = false;
+
+    const q = questions[currentIndex];
+
+    const buttons = choicesGrid.querySelectorAll('button');
+    buttons.forEach((b, idx) => {
+      b.disabled = true;
+      b.classList.remove('correct', 'incorrect');
+      if (q.answer !== null && idx === q.answer) {
+        b.classList.add('correct');
+      }
+      if (idx === i) {
+        if (q.answer === null) {
+          noAnswerMsg.textContent = '정답이 없습니다.';
+          explanationMsg.textContent = '';
+        } else if (i === q.answer) {
+          b.classList.add('correct');
+          score++;
+          explanationMsg.textContent = '';
+        } else {
+          b.classList.add('incorrect');
+          noAnswerMsg.textContent = '';
+          const explain = explanations[currentIndex]?.[i];
+          explanationMsg.textContent = explain || '';
+        }
+      }
+    });
+
+    if (q.answer !== null && selectedChoiceIndex === q.answer) {
+      noAnswerMsg.textContent = '';
+    }
+  }
+
+  nextBtn.addEventListener('click', () => {
+    if (!answered && questions[currentIndex].answer !== null) return;
+
+    // 진행도 바 상태 업데이트
+    if(currentIndex === 3) {
+      // 4번째 문제은 무조건 주황색 (neutral)
+      progressStates[currentIndex] = 'neutral';
+    } else {
+      if(selectedChoiceIndex === questions[currentIndex].answer) {
+        progressStates[currentIndex] = 'correct';
+      } else {
+        progressStates[currentIndex] = 'incorrect';
+      }
+    }
+
+    updateProgressBar();
+
+    if (currentIndex < questions.length - 1) {
+      currentIndex++;
+      renderQuestion();
+    } else {
+      showEndScreen();
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (questions.length !== 7) {
+      if (!confirm(`문제가 ${questions.length}개입니다. 계속 진행할까요?`)) return;
+    }
+    showQuizScreen();
+  });
+
+  restartBtn.addEventListener('click', () => {
+    showStartScreen();
+  });
+
+  // 문제 배열 설정 (이미지 파일 경로는 실제 파일로 교체하세요)
+  setQuestions([
+    { question: '수어에도 사투리가 있을까요?', choices: ['O', 'X'], answer: 0 },
+    { question: '모든 농인은 대화방법중 수어를 가장 쉽게 생각한다.', choices: ['O', 'X'], answer: 1 },
+    { question: '장애우와 장애인 중 적절한 표현을 고르시오', choices: ['둘다 맞다', '장애우가 맞다', '장애인이 맞다', '둘다 틀리다'], answer: 2 },
+    { question: '시각장애인이 보는 세상 중 바르지 않은 것은?', choices: [
+      { text: '보기 1', img: 'image.jpg' },
+      { text: '보기 2', img: 'image1.jpg' },
+      { text: '보기 3', img: 'image2.jpg' },
+      { text: '보기 4', img: 'image3.jpg' },
+    ], answer: null },
+    { question: '장애인의 날은 언제일까요?', choices: ['4월 19일', '4월 20일', '4월 21일', '11월 2일'], answer: 1 },
+    { question: '시각장애는 선천적으로만 생길까요?', choices: ['O', 'X'], answer: 1 },
+    { question: '안내견을 보면 안내견을 위한 간식을 줘도 된다', choices: ['O', 'X'], answer: 1 }
+  ]);
+
+  showStartScreen();
+
+})();
+</script>
+
+</body>
+</html>
