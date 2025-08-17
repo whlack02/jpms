@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>탈출 맵 게임 (완성본) — 모바일 가로모드 컨트롤 표시</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111827; --accent:#00adb5; --muted:#9fb0d4;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:Inter,system-ui,Arial,sans-serif;
+    background:linear-gradient(180deg,#071026,#071026 100%);
+    color:#e6eef8;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:18px;
+  }
+
+  .card{
+    background:rgba(255,255,255,0.02);
+    padding:14px;
+    border-radius:12px;
+    width:100%;
+    max-width:980px;
+    margin-bottom:12px;
+  }
+
+  h1{margin:0 0 8px 0;font-size:1.2rem}
+  p.lead{margin:0;color:var(--muted)}
+
+  .debuff-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .debuff-btn{
+    padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);
+    background:rgba(255,255,255,0.02);cursor:pointer;color:#e6eef8;user-select:none;
+  }
+  .debuff-btn.active{background:linear-gradient(90deg,#00d1c6,#7ef0d4);color:#052826;font-weight:700;border-color:rgba(255,255,255,0.06)}
+
+  #startRow{display:flex;gap:12px;align-items:center;margin-top:12px}
+  button.primary{
+    background:var(--accent);color:#052826;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700;
+  }
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:var(--muted);cursor:pointer}
+
+  /* game area */
+  .game-wrap{display:flex;gap:16px;flex-direction:column;align-items:center;width:100%;max-width:980px}
+  #hud{display:flex;justify-content:space-between;width:100%;max-width:980px;align-items:center;margin-top:8px}
+  #timer{font-weight:700}
+  canvas{border-radius:10px;background:#071022;max-width:90vw;width:600px;height:600px;display:none;box-shadow:0 8px 30px rgba(0,173,181,0.08)}
+  /* hint button in corner */
+  #hintBtn{
+    position:fixed;right:18px;bottom:18px;padding:12px 16px;border-radius:10px;border:0;background:var(--accent);color:#052826;font-weight:700;display:none;cursor:pointer;box-shadow:0 6px 18px rgba(0,173,181,0.12)
+  }
+
+  /* mobile touch controls */
+  .touch-controls{display:none;gap:8px;margin-top:10px}
+  .touch-controls button{width:56px;height:56px;border-radius:10px;border:0;background:rgba(255,255,255,0.06);color:#e6eef8;font-size:20px}
+
+  /* existing rule: show touch controls on small screens (portrait) */
+  @media(max-width:720px){
+    .touch-controls{display:grid;grid-template-columns:56px 56px 56px;grid-template-rows:56px 56px;margin-top:12px;justify-content:center}
+    canvas{max-width:92vw;max-height:92vw}
+  }
+
+  /* NEW: also show touch controls in mobile landscape (heuristic: landscape AND max-width:1024px) */
+  @media (orientation: landscape) and (max-width:1024px) {
+    .touch-controls{display:grid;grid-template-columns:56px 56px 56px;grid-template-rows:56px 56px;margin-top:12px;justify-content:center}
+    canvas{max-width:88vw;height:auto}
+  }
+
+  /* small tweaks for very narrow devices */
+  @media (max-width:380px){
+    .touch-controls button{width:52px;height:52px;font-size:18px}
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="startCard">
+    <h1>탈출 맵 — 디버프 필수 선택</h1>
+    <p class="lead">원하는 디버프를 복수로 선택하세요. 게임 시작 전까지 미로는 표시되지 않습니다.</p>
+
+    <div class="debuff-row" id="debuffRow">
+      <div class="debuff-btn" data-debuff="vision">시야 제한 (1.5칸)</div>
+      <div class="debuff-btn" data-debuff="reverse">방향 반전</div>
+      <div class="debuff-btn" data-debuff="randomMove">제어 불가 (1~3칸)</div>
+    </div>
+
+    <div id="startRow">
+      <button class="primary" id="startBtn">게임 시작</button>
+      <button class="ghost" id="resetBtn">초기화</button>
+      <button class="primary" id="exitStartBtn" onclick="goToMainRoom()">나가기</button>
+      <div style="margin-left:auto;color:var(--muted)">미로: <span id="sizeLabel">30×30</span></div>
+    </div>
+  </div>
+
+  <div class="game-wrap">
+    <div id="hud" style="display:none">
+      <div id="timer">시간: 0초</div>
+      <button class="primary" id="exitHudBtn" onclick="goToMainRoom()">나가기</button>
+      <div id="status" style="color:var(--muted)">디버프: <span id="activeDebuffs">-</span></div>
+    </div>
+
+    <canvas id="gridCanvas" width="600" height="600"></canvas>
+
+    <div class="touch-controls" id="touchControls">
+      <div></div><button id="btnUp">↑</button><div></div>
+      <button id="btnLeft">←</button><button id="btnDown">↓</button><button id="btnRight">→</button>
+    </div>
+  </div>
+  
+  <button id="hintBtn">힌트</button>
+
+<script>
+/* --------------- 설정 --------------- */
+const COLS = 30, ROWS = 30;
+const WALL_RATE = 0.4; // 40%
+const canvas = document.getElementById('gridCanvas');
+const ctx = canvas.getContext('2d');
+let tileSize = canvas.width / COLS;
+
+/* UI elements */
+const debuffRow = document.getElementById('debuffRow');
+const debuffButtons = document.querySelectorAll('.debuff-btn');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const hintBtn = document.getElementById('hintBtn');
+const hud = document.getElementById('hud');
+const timerEl = document.getElementById('timer');
+const statusEl = document.getElementById('activeDebuffs');
+const touchControls = document.getElementById('touchControls');
+const btnUp = document.getElementById('btnUp');
+const btnDown = document.getElementById('btnDown');
+const btnLeft = document.getElementById('btnLeft');
+const btnRight = document.getElementById('btnRight');
+// exit buttons (unique IDs now)
+const exitStart = document.getElementById('exitStartBtn');
+const exitHud = document.getElementById('exitHudBtn');
+
+function goToMainRoom(){ window.location.href = 'mainroom.html'; }
+exitStart && exitStart.addEventListener('click', goToMainRoom);
+exitHud && exitHud.addEventListener('click', goToMainRoom);
+
+let map = [];
+let player = {x:1,y:1};
+let goal = {x:COLS-2, y:ROWS-2};
+let selectedDebuffs = []; // strings
+let hintActive = false;
+let gameRunning = false;
+let timerInterval = null;
+let startTime = 0;
+let hintTimeout = null; // <--- 힌트 지연용 타이머 참조
+
+/* --------------- 유틸 / 미로 생성 등 --------------- */
+// 토글 디버프 버튼 (시작 전)
+debuffButtons.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    btn.classList.toggle('active');
+  });
+});
+
+function readSelectedDebuffsFromUI(){
+  selectedDebuffs = [...document.querySelectorAll('.debuff-btn.active')].map(n=>n.dataset.debuff);
+  statusEl.textContent = selectedDebuffs.length ? selectedDebuffs.join(', ') : '-';
+}
+
+/* BFS 경로 존재 체크 */
+function pathExists(mapData, start, end){
+  const visited = Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  const q=[start];
+  visited[start.y][start.x]=true;
+  const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  while(q.length){
+    const cur=q.shift();
+    if(cur.x===end.x && cur.y===end.y) return true;
+    for(const d of dirs){
+      const nx=cur.x+d.x, ny=cur.y+d.y;
+      if(nx>=0 && nx<COLS && ny>=0 && ny<ROWS && !visited[ny][nx] && mapData[ny][nx]===0){
+        visited[ny][nx]=true; q.push({x:nx,y:ny});
+      }
+    }
+  }
+  return false;
+}
+
+/* 목표 위치: 오른쪽변 혹은 아랫변 랜덤 (내부 좌표 1..COLS-2) */
+function placeRandomGoal(){
+  if(Math.random()<0.5){
+    goal.x = COLS-2;
+    goal.y = Math.floor(Math.random()*(ROWS-2))+1;
+  } else {
+    goal.y = ROWS-2;
+    goal.x = Math.floor(Math.random()*(COLS-2))+1;
+  }
+}
+
+/* 미로 생성: 벽률 40%, 출발/도착은 길로, 경로 반드시 존재 보장 */
+function generateMap(){
+  do {
+    map = [];
+    for(let y=0;y<ROWS;y++){
+      map[y]=[];
+      for(let x=0;x<COLS;x++){
+        if(x===0 || y===0 || x===COLS-1 || y===ROWS-1) map[y][x]=1;
+        else map[y][x] = Math.random() < WALL_RATE ? 1 : 0;
+      }
+    }
+    // ensure start/goal cells are open
+    map[player.y][player.x] = 0;
+    map[goal.y][goal.x] = 0;
+  } while(!pathExists(map, player, goal));
+}
+
+/* Bresenham line to test occlusion between player and cell */
+function lineBlocked(x0,y0,x1,y1){
+  // iterate through cells between (x0,y0) and (x1,y1), excluding target cell
+  let dx = Math.abs(x1 - x0);
+  let dy = Math.abs(y1 - y0);
+  let sx = x0 < x1 ? 1 : -1;
+  let sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  let x = x0, y = y0;
+  while(!(x === x1 && y === y1)){
+    // move
+    let e2 = err*2;
+    if(e2 > -dy){ err -= dy; x += sx; }
+    else if(e2 < dx){ err += dx; y += sy; }
+    // if we've reached target, break without checking the target cell
+    if(x === x1 && y === y1) break;
+    if(map[y][x] === 1) return true; // blocked by a wall early on
+  }
+  return false;
+}
+
+/* visibility check using chebyshev radius + occlusion test */
+function isVisibleCell(x,y){
+  // radius depends on debuff 'vision'
+  const radius = selectedDebuffs.includes('vision') ? 1.5 : 5;
+  const dx = Math.abs(x - player.x), dy = Math.abs(y - player.y);
+  const cheb = Math.max(dx,dy);
+  if(cheb > radius) return false;
+  // occlusion: if any wall between centers -> blocked
+  if(lineBlocked(player.x, player.y, x, y)) return false;
+  return true;
+}
+
+/* goal visibility: either hint active => always, else use same radius+occlusion rules */
+function isGoalVisible(){
+  if(hintActive) return true;
+  return isVisibleCell(goal.x, goal.y);
+}
+
+/* brightness based on chebyshev distance and radius */
+function getBrightness(x,y){
+  const radius = selectedDebuffs.includes('vision') ? 1.5 : 5;
+  const dx = Math.abs(x - player.x), dy = Math.abs(y - player.y);
+  const cheb = Math.max(dx,dy);
+  let b = 1 - (cheb / radius) * 0.7;
+  if(b < 0.3) b = 0.3;
+  return b;
+}
+
+/* --------------- 그리기 --------------- */
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  tileSize = canvas.width / COLS;
+
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      let vis = isVisibleCell(x,y);
+      // If cell is goal, decide based on isGoalVisible
+      if(x===goal.x && y===goal.y){
+        vis = isGoalVisible();
+      }
+      if(!vis){
+        // hidden
+        ctx.fillStyle = '#071018';
+        ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+        continue;
+      }
+      if(map[y][x]===1){
+        const b = getBrightness(x,y);
+        ctx.fillStyle = `rgba(0,128,0,${b})`; // green walls
+        ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+        ctx.strokeStyle = `rgba(0,200,0,${b})`;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(x*tileSize,y*tileSize,tileSize,tileSize);
+      } else if(x===goal.x && y===goal.y){
+        // goal visible
+        ctx.fillStyle = '#f9d71c';
+        ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+      } else {
+        const b = getBrightness(x,y);
+        ctx.fillStyle = `rgba(238,238,238,${b})`;
+        ctx.fillRect(x*tileSize,y*tileSize,tileSize,tileSize);
+        ctx.strokeStyle = `rgba(57,62,70,${b})`;
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(x*tileSize,y*tileSize,tileSize,tileSize);
+      }
+    }
+  }
+
+  // draw player
+  ctx.fillStyle = '#ff5722';
+  ctx.fillRect(player.x*tileSize + tileSize*0.08, player.y*tileSize + tileSize*0.08, tileSize*0.84, tileSize*0.84);
+}
+
+/* --------------- 움직임 --------------- */
+function tryMoveBy(dx,dy){
+  if(!gameRunning) return;
+  // reverse debuff
+  if(selectedDebuffs.includes('reverse')){
+    dx = -dx; dy = -dy;
+  }
+
+  if(selectedDebuffs.includes('randomMove')){
+    const steps = Math.floor(Math.random()*3) + 1; // 1~3
+    let nx = player.x, ny = player.y;
+    for(let s=0;s<steps;s++){
+      const tx = nx + dx, ty = ny + dy;
+      if(tx < 0 || ty < 0 || tx >= COLS || ty >= ROWS) break;
+      if(map[ty][tx] === 1) break; // stop before wall
+      nx = tx; ny = ty;
+    }
+    player.x = nx; player.y = ny;
+  } else {
+    const nx = player.x + dx, ny = player.y + dy;
+    if(nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS && map[ny][nx] === 0){
+      player.x = nx; player.y = ny;
+    }
+  }
+
+  draw();
+  // check goal
+  if(player.x === goal.x && player.y === goal.y){
+    // stop timer
+    stopTimer();
+    setTimeout(()=> alert(`도착했습니다! 시간: ${getElapsedSeconds()}초`), 50);
+    resetToStartScreen();
+  }
+}
+
+/* --------------- 타이머 --------------- */
+function startTimer(){
+  startTime = Date.now();
+  timerEl.textContent = '시간: 0초';
+  timerInterval = setInterval(()=>{
+    timerEl.textContent = '시간: '+ getElapsedSeconds() + '초';
+  },1000);
+}
+function stopTimer(){
+  if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
+}
+function getElapsedSeconds(){
+  return Math.floor((Date.now() - startTime)/1000);
+}
+
+/* --------------- 힌트 / 디버프 제거 / 시작화면 전환 --------------- */
+function onHintClick(){
+  if(!gameRunning) return;
+  if(!hintActive){
+    hintActive = true;
+    // reveal goal permanently
+    draw();
+    // after revealing, still remove nothing yet; next clicks remove debuffs
+    return;
+  }
+  // if hintActive already: remove random debuff if any
+  if(selectedDebuffs.length > 0){
+    const idx = Math.floor(Math.random() * selectedDebuffs.length);
+    const removed = selectedDebuffs.splice(idx,1)[0];
+    // Update UI: remove active class on corresponding button
+    debuffButtons.forEach(btn=>{
+      if(btn.dataset.debuff === removed) btn.classList.remove('active');
+    });
+    statusEl.textContent = selectedDebuffs.length ? selectedDebuffs.join(', ') : '-';
+    alert(`디버프 '${removed}'이(가) 제거되었습니다.`);
+  } else {
+    // no debuffs left, should not usually happen because button text will change; but handle gracefully
+  }
+
+  if(selectedDebuffs.length === 0){
+    hintBtn.textContent = '시작화면';
+  }
+}
+
+hintBtn.addEventListener('click', ()=>{
+  if(hintBtn.textContent === '시작화면'){
+    // go to start screen
+    resetToStartScreen();
+  } else {
+    onHintClick();
+    draw();
+  }
+});
+
+/* --------------- 화면 전환 / 초기화 --------------- */
+function resetToStartScreen(){
+  // stop game, show start UI, reset relevant flags
+  stopTimer();
+  gameRunning = false;
+  hintActive = false;
+
+  // clear any pending hint timeout and hide hint button
+  if(hintTimeout){
+    clearTimeout(hintTimeout);
+    hintTimeout = null;
+  }
+  hintBtn.style.display = 'none';
+  hintBtn.textContent = '힌트';
+
+  // hide game HUD and canvas
+  hud.style.display = 'none';
+  canvas.style.display = 'none';
+  touchControls.style.display = 'none';
+  // reset UI: clear active classes on buttons
+  debuffButtons.forEach(b=>b.classList.remove('active'));
+  document.getElementById('startCard').style.display = 'block';
+  // reset player / map
+  player = {x:1,y:1};
+  map = [];
+  selectedDebuffs = [];
+  statusEl.textContent = '-';
+}
+
+/* --------------- 시작 버튼 핸들 --------------- */
+startBtn.addEventListener('click', ()=>{
+  // read selected debuffs and initialize game
+  selectedDebuffs = [...document.querySelectorAll('.debuff-btn.active')].map(n=>n.dataset.debuff);
+  if(selectedDebuffs.length === 0){
+    alert('적어도 하나 이상의 디버프를 선택하세요.');
+    return;
+  }
+
+  // init positions
+  player = {x:1,y:1};
+  placeRandomGoal();
+  generateMap(); // generates map and ensures path between player and goal
+
+  // UI switch
+  document.getElementById('startCard').style.display = 'none';
+  hud.style.display = 'flex';
+  canvas.style.display = 'block';
+  // touch controls shown based on helper function
+  updateTouchControlsVisibility();
+
+  // flags
+  hintActive = false;
+  gameRunning = true;
+  statusEl.textContent = selectedDebuffs.join(', ');
+
+  // timer
+  startTimer();
+
+  // schedule hint button to appear after 90 seconds
+  if(hintTimeout){
+    clearTimeout(hintTimeout);
+    hintTimeout = null;
+  }
+  hintTimeout = setTimeout(()=>{
+    // only show when game is still running
+    if(gameRunning){
+      hintBtn.style.display = 'block';
+    }
+    hintTimeout = null; // clear reference after it fired
+  }, 90 * 1000); // 90초
+
+  // initial draw
+  draw();
+});
+
+/* reset button at start screen */
+resetBtn.addEventListener('click', ()=>{
+  debuffButtons.forEach(b=>b.classList.remove('active'));
+});
+
+/* --------------- 키보드 + 터치 조작 --------------- */
+document.addEventListener('keydown', (e)=>{
+  if(!gameRunning) return;
+  if(e.key === 'ArrowUp') tryMoveBy(0,-1);
+  if(e.key === 'ArrowDown') tryMoveBy(0,1);
+  if(e.key === 'ArrowLeft') tryMoveBy(-1,0);
+  if(e.key === 'ArrowRight') tryMoveBy(1,0);
+});
+
+/* on-screen arrow buttons */
+btnUp.addEventListener('click', ()=>tryMoveBy(0,-1));
+btnDown.addEventListener('click', ()=>tryMoveBy(0,1));
+btnLeft.addEventListener('click', ()=>tryMoveBy(-1,0));
+btnRight.addEventListener('click', ()=>tryMoveBy(1,0));
+
+/* swipe detection for canvas */
+let touchStartX=0, touchStartY=0;
+canvas.addEventListener('touchstart', (e)=>{
+  const t=e.touches[0];
+  touchStartX=t.clientX; touchStartY=t.clientY;
+}, {passive:true});
+canvas.addEventListener('touchend', (e)=>{
+  const t=e.changedTouches[0];
+  const dx = t.clientX - touchStartX; const dy = t.clientY - touchStartY;
+  if(Math.abs(dx) < 20 && Math.abs(dy) < 20) return; // tap
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(dx > 0) tryMoveBy(1,0); else tryMoveBy(-1,0);
+  } else {
+    if(dy > 0) tryMoveBy(0,1); else tryMoveBy(0,-1);
+  }
+}, {passive:true});
+
+/* prevent context menu on long press mobile */
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+/* --------------- responsiveness: resize canvas on small screens --------------- */
+function updateTouchControlsVisibility(){
+  // show touch controls when either:
+  // 1) narrow screen (<=720px) OR
+  // 2) device in landscape and relatively small (orientation: landscape and max-width:1024px)
+  const isNarrow = window.innerWidth <= 720;
+  const isLandscapeSmall = (window.matchMedia && window.matchMedia('(orientation: landscape) and (max-width: 1024px)').matches);
+  const shouldShow = (gameRunning && (isNarrow || isLandscapeSmall));
+  touchControls.style.display = shouldShow ? 'grid' : 'none';
+}
+
+window.addEventListener('resize', ()=>{
+  // show/hide touch controls when resizing / rotating
+  updateTouchControlsVisibility();
+});
+
+// also listen to orientationchange for some browsers
+window.addEventListener('orientationchange', ()=>{
+  setTimeout(updateTouchControlsVisibility, 120);
+});
+
+/* initialize start state (show start card) */
+resetToStartScreen();
+document.getElementById('sizeLabel').textContent = `${COLS}×${ROWS}`;
+</script>
+</body>
+</html>
