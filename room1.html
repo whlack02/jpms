@@ -415,7 +415,7 @@ function resetToStartScreen(){
   // hide game HUD and canvas
   hud.style.display = 'none';
   canvas.style.display = 'none';
-  touchControls.style.display = 'none';
+  touchControls.style.display = 'block';
   // reset UI: clear active classes on buttons
   debuffButtons.forEach(b=>b.classList.remove('active'));
   document.getElementById('startCard').style.display = 'block';
@@ -445,7 +445,7 @@ startBtn.addEventListener('click', ()=>{
   hud.style.display = 'flex';
   canvas.style.display = 'block';
   // touch controls shown based on helper function
-  updateTouchControlsVisibility();
+  
 
   // flags
   hintActive = false;
@@ -464,7 +464,7 @@ startBtn.addEventListener('click', ()=>{
     // only show when game is still running
     if(gameRunning){
       hintBtn.style.display = 'block';
-    }
+    }	
     hintTimeout = null; // clear reference after it fired
   }, 90 * 1000); // 90초
 
