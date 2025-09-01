@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Main Room (responsive doors)</title>
+
+  <style>
+    /* --------------------------
+       기본 변수 (반응형 핵심)
+       -------------------------- */
+    :root{
+      /* door width: 최소 80px, 권장 12vw, 최대 140px */
+      --door-w: clamp(80px, 12vw, 140px);
+      /* door height 비율(가로 대비 세로) */
+      --door-h: calc(var(--door-w) * 1.7);
+      /* 화면 가장자리 여백 */
+      --edge-offset: clamp(16px, 4vw, 48px);
+    }
+
+    /* 안전영역 고려 (iPhone notch 등) */
+    .game-area {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background-image: url('kimho.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      overflow: hidden;
+      padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    /* 플레이어 (원형) */
+    .player {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background-color: purple;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      z-index: 30;
+    }
+
+    /* ==== 문 스타일 (크기 변수 적용) ==== */
+    .door {
+      position: absolute;
+      width: var(--door-w);
+      height: var(--door-h);
+      background: linear-gradient(to right, #5a4633, #3e2f21);
+      border: 4px solid #2a1f14;
+      border-radius: 6px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.6);
+      cursor: pointer;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    /* 손잡이 */
+    .door::before {
+      content: '';
+      position: absolute;
+      top: calc(var(--door-h) / 2 - 8px); /* 문 높이에 비례 */
+      left: 12px;
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle, #c9c9c9, #777);
+      border-radius: 50%;
+      box-shadow: inset -1px -1px 2px rgba(0,0,0,0.4);
+    }
+
+    /* 라벨: 크기와 위치를 문 크기에 비례하게 */
+    .door-label {
+      position: absolute;
+      bottom: calc(-0.16 * var(--door-h)); /* 문 높이에 비례해 라벨 위치 지정 */
+      width: 100%;
+      text-align: center;
+      font-size: clamp(12px, 2.2vw, 18px);
+      color: #fff;
+      font-weight: 700;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+      pointer-events: none;
+    }
+
+    .door:hover { transform: scale(1.03); box-shadow: 0 14px 28px rgba(0,0,0,0.7); }
+    .door:active { transform: rotateY(12deg) scale(1.02); }
+
+    /* ==== 문 위치 (가로/세로에 따른 offset은 변수로 관리) ==== */
+    #door1 { top: var(--edge-offset); left: var(--edge-offset); }
+    #door2 { top: var(--edge-offset); right: var(--edge-offset); }
+    #door3 { bottom: var(--edge-offset); right: var(--edge-offset); }
+    #door4 { bottom: var(--edge-offset); left: var(--edge-offset); }
+    #door5 { bottom: var(--edge-offset); left: calc(50% - (var(--door-w) / 2)); }
+
+    /* 조이스틱 */
+    .joystick-container {
+      position: absolute;
+      bottom: calc(var(--edge-offset));
+      left: calc(var(--edge-offset));
+      width: 120px;
+      height: 120px;
+      background: rgba(0, 0, 0, 0.22);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+      z-index: 40;
+    }
+
+    .joystick {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      left: 30px;
+      top: 30px;
+      background: radial-gradient(circle at 30% 30%, #bbb, #555);
+      border-radius: 50%;
+      border: 2px solid #333;
+      touch-action: none;
+    }
+
+    /* --------------------
+       작은 화면(휴대폰) 가로 모드: 더 작게 조정
+       -------------------- */
+    @media (max-width: 820px) and (orientation: landscape) {
+      :root{
+        /* 모바일 가로에서의 기본 문 크기를 더 작게 */
+        --door-w: clamp(64px, 16vw, 110px);
+        --edge-offset: 12px;
+      }
+      .joystick-container { width: 96px; height: 96px; }
+      .joystick { width: 48px; height: 48px; left: 24px; top: 24px; }
+      .player { width: 30px; height: 30px; }
+    }
+
+    /* 추가: 아주 작은 화면(최소 가로폭)에서 더 작은 옵션 */
+    @media (max-width: 420px) {
+      :root {
+        --door-w: clamp(56px, 18vw, 90px);
+        --edge-offset: 10px;
+      }
+      .door-label { font-size: clamp(10px, 3vw, 14px); }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="game-area" id="gameArea">
+    <div class="player" id="player"></div>
+
+    <!-- 문 5개 -->
+    <div class="door" id="door1"><span class="door-label">방1</span></div>
+    <div class="door" id="door2"><span class="door-label">방2</span></div>
+    <div class="door" id="door3"><span class="door-label">방3</span></div>
+    <div class="door" id="door4"><span class="door-label">방4</span></div>
+    <div class="door" id="door5"><span class="door-label">방5</span></div>
+
+    <!-- 조이스틱 -->
+    <div class="joystick-container" id="joystickContainer">
+      <div class="joystick" id="joystick"></div>
+    </div>
+  </div>
+
+  <!-- 통합된 스크립트 -->
+  <script>
+    const player = document.getElementById('player');
+    const joystick = document.getElementById('joystick');
+    const joystickContainer = document.getElementById('joystickContainer');
+
+    const doors = {
+      door1: { element: document.getElementById('door1'), url: 'room1.html' },
+      door2: { element: document.getElementById('door2'), url: 'room2.html' },
+      door3: { element: document.getElementById('door3'), url: 'room3.html' },
+      door4: { element: document.getElementById('door4'), url: 'room4.html' },
+      door5: { element: document.getElementById('door5'), url: 'room5.html' }
+    };
+
+    let position = {
+      x: window.innerWidth / 2 - 5,
+      y: window.innerHeight / 2 - 5
+    };
+
+    let keys = {
+      ArrowUp: false,
+      ArrowDown: false,
+      ArrowLeft: false,
+      ArrowRight: false
+    };
+
+    const speed = 3;
+
+    document.addEventListener('keydown', (e) => {
+      if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = true;
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (keys.hasOwnProperty(e.key)) {
+        keys[e.key] = false;
+      }
+    });
+
+    // ======================
+    // 모바일 조이스틱 입력 처리
+    // ======================
+
+    let dragging = false;
+    let origin = { x: 0, y: 0 };
+    let joyDir = { x: 0, y: 0 };
+
+    joystickContainer.addEventListener('touchstart', (e) => {
+      dragging = true;
+      const touch = e.touches[0];
+      origin.x = touch.clientX;
+      origin.y = touch.clientY;
+    }, { passive: true });
+
+    joystickContainer.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - origin.x;
+      const dy = touch.clientY - origin.y;
+      const distance = Math.min(Math.hypot(dx, dy), 40); // 최대 반경 제한
+      const angle = Math.atan2(dy, dx);
+
+      // 조이스틱 위치 이동
+      const x = distance * Math.cos(angle);
+      const y = distance * Math.sin(angle);
+      joystick.style.transform = `translate(${x}px, ${y}px)`;
+
+      // 방향 설정
+      joyDir.x = Math.cos(angle);
+      joyDir.y = Math.sin(angle);
+    }, { passive: true });
+
+    joystickContainer.addEventListener('touchend', () => {
+      dragging = false;
+      joystick.style.transform = `translate(0px, 0px)`;
+      joyDir.x = 0;
+      joyDir.y = 0;
+    });
+
+    // ======================
+    // 메인 게임 루프
+    // ======================
+
+    function gameLoop() {
+      // 키보드 입력
+      if (keys.ArrowUp) position.y = Math.max(0, position.y - speed);
+      if (keys.ArrowDown) position.y = Math.min(window.innerHeight - 10, position.y + speed);
+      if (keys.ArrowLeft) position.x = Math.max(0, position.x - speed);
+      if (keys.ArrowRight) position.x = Math.min(window.innerWidth - 10, position.x + speed);
+
+      // 조이스틱 입력
+      if (joyDir.x !== 0 || joyDir.y !== 0) {
+        position.x += joyDir.x * speed;
+        position.y += joyDir.y * speed;
+
+        position.x = Math.max(0, Math.min(window.innerWidth - 10, position.x));
+        position.y = Math.max(0, Math.min(window.innerHeight - 10, position.y));
+      }
+
+      updatePlayer();
+      checkCollision();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function updatePlayer() {
+      player.style.left = `${position.x}px`;
+      player.style.top = `${position.y}px`;
+    }
+
+    function checkCollision() {
+      const playerRect = player.getBoundingClientRect();
+
+      for (const key in doors) {
+        const door = doors[key];
+        const doorRect = door.element.getBoundingClientRect();
+
+        if (
+          playerRect.left < doorRect.right &&
+          playerRect.right > doorRect.left &&
+          playerRect.top < doorRect.bottom &&
+          playerRect.bottom > doorRect.top
+        ) {
+          // 페이지 이동
+          window.location.href = door.url;
+          return;
+        }
+      }
+    }
+
+    // 초기 위치 설정 및 루프 시작
+    updatePlayer();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
+```
