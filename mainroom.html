@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Main Room (responsive doors)</title>
+  <title>Main Room</title>
 
   <style>
     /* --------------------------
-       기본 변수 (반응형 핵심)
+       기본 변수
        -------------------------- */
     :root{
       /* door width: 최소 80px, 권장 12vw, 최대 140px */
@@ -23,7 +23,7 @@
       position: relative;
       width: 100%;
       height: 100vh;
-      background-image: url('kimho.jpg');
+      background-image: url('background.jpg');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -99,7 +99,7 @@
     .door:hover { transform: scale(1.03); box-shadow: 0 14px 28px rgba(0,0,0,0.7); }
     .door:active { transform: rotateY(12deg) scale(1.02); }
 
-    /* ==== 문 위치 (가로/세로에 따른 offset은 변수로 관리) ==== */
+    /* ==== 문 위치==== */
     #door1 { top: var(--edge-offset); left: var(--edge-offset); }
     #door2 { top: var(--edge-offset); right: var(--edge-offset); }
     #door3 { bottom: var(--edge-offset); right: var(--edge-offset); }
@@ -313,4 +313,3 @@
   </script>
 </body>
 </html>
-```

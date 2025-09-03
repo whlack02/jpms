@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>친구랑 걷는 길 (반응형)</title>
+  <title>친구만들기</title>
   <style>
     :root {
       --shadow: 0 8px 24px rgba(0,0,0,.15);
@@ -186,7 +186,7 @@
         <div id="closeness-info">친밀도: 0</div>
         <div id="npc-text"></div>
         <div id="choices"></div>
-        <div id="z-prompt">Z키를 눌러 넘기기</div>
+        <div id="z-prompt">:(</div>
       </div>
 
       <button id="exit-btn" onclick="window.location.href='mainroom.html'">나가기</button>
@@ -197,7 +197,7 @@
         </div>
         <div id="action-area">
           <button id="e-btn" class="action-btn" aria-label="상호작용 (E)" disabled>E</button>
-          <button id="z-btn" class="action-btn" aria-label="대화 넘기기 (Z)">Z</button>
+          
         </div>
       </div>
 
@@ -351,7 +351,9 @@
       fr.closeness += delta;
 
       npcText.innerText = unexpected ? '앗, 다른 행동을 해버렸어요!' : '좋은 선택이었어요!';
-      choicesDiv.innerHTML = `<button onclick="continueDialogue()">대화 이어가기</button>`;
+      choicesDiv.innerHTML =
+	 `<button style=background-color:whtie;>                 </button>
+	  <button onclick="continueDialogue()">대화 이어가기</button>`;
       closenessInfo.innerText = `${fr.name} 친밀도: ${fr.closeness}`;
     }
 
@@ -658,11 +660,7 @@
       if(!eBtn.disabled && !inDialogue && currentFriendIndex!==null)
         openDialogue(currentFriendIndex);
     });
-    zBtn.addEventListener('click', ()=>{
-      if(inDialogue && !requireZToClose) continueDialogue();
-      else if(inDialogue && requireZToClose) closeDialogue();
-      else if(inHouse && !houseDialogDone) finishHouseDialogue();
-    });
+    
 
     const joystickEl = document.getElementById('joystick');
     const stickEl = document.getElementById('stick');
