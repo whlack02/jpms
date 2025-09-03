@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>친구만들기</title>
+  <style>
+    :root {
+      --shadow: 0 8px 24px rgba(0,0,0,.15);
+      --rounded: 14px;
+      --ctrl-offset: clamp(12px, 2vw, 20px);
+      --btn-size: clamp(48px, 8vw, 64px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-rounded, "Segoe UI", system-ui, -apple-system,
+                   "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #ffeef6, #e7f5ff);
+      display: flex;
+      justify-content: center;
+      padding: var(--ctrl-offset);
+    }
+
+    #game-container {
+      width: 100%;
+      max-width: 860px;
+    }
+    #game {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 860 / 460;
+      background: linear-gradient(#ffeef6, #e7f5ff);
+      border-radius: var(--rounded);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      user-select: none;
+    }
+    #mapCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* 대화 박스 */
+    #dialogue-box {
+      position: absolute;
+      top: var(--ctrl-offset);
+      left: var(--ctrl-offset);
+      right: var(--ctrl-offset);
+      background: rgba(255,255,255,.96);
+      border: 2px solid #ffd2e1;
+      border-radius: 16px;
+      padding: 12px;
+      display: none;
+      z-index: 30;
+      box-shadow: 0 10px 20px rgba(255,182,193,.25);
+    }
+    #closeness-info { font-weight: 800; color: #ff6fa8; margin-bottom: 6px; }
+    #npc-text { color: #444; line-height: 1.4; }
+    #choices {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    #choices button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      background: #ffd9ec;
+      color: #8a3a62;
+      font-weight: 700;
+      box-shadow: 0 4px 10px rgba(255,160,200,.35);
+      transition: transform .05s;
+    }
+    #choices button:active { transform: translateY(2px); }
+    #z-prompt {
+      position: absolute;
+      right: var(--ctrl-offset);
+      bottom: calc(var(--ctrl-offset)*1.5);
+      font-size: 12px;
+      color: #666;
+      display: none;
+    }
+
+    /* 나가기 버튼 */
+    #exit-btn {
+      position: absolute;
+      left: 50%;
+      bottom: var(--ctrl-offset);
+      transform: translateX(-50%);
+      padding: 8px 14px;
+      border: none;
+      border-radius: 999px;
+      background: #ff9fb6;
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(255,105,135,.35);
+      z-index: 20;
+      font-size: clamp(14px, 2.5vw, 18px);
+    }
+    #exit-btn:hover { filter: brightness(1.05); }
+
+    /* 컨트롤 */
+    #controls {
+      position: absolute;
+      bottom: var(--ctrl-offset);
+      left: var(--ctrl-offset);
+      right: var(--ctrl-offset);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 25;
+    }
+    #joystick {
+      pointer-events: auto;
+      width: var(--btn-size);
+      height: var(--btn-size);
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #ffffffa6, #ffd8e6a8);
+      border: 2px solid #ffc6da;
+      position: relative;
+      touch-action: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(255,160,200,.3);
+    }
+    #stick {
+      width: calc(var(--btn-size) * 0.46);
+      height: calc(var(--btn-size) * 0.46);
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fff, #ffc6da);
+      border: 2px solid #ffb0c8;
+      transition: transform .02s linear;
+      box-shadow: 0 6px 12px rgba(0,0,0,.15);
+    }
+    #action-area {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: calc(var(--ctrl-offset)/2);
+    }
+    .action-btn {
+      width: var(--btn-size);
+      height: var(--btn-size);
+      border-radius: 50%;
+      border: 2px solid #bde3ff;
+      background: radial-gradient(circle at 30% 30%, #fff, #cfeaff);
+      font-size: clamp(16px, 4vw, 20px);
+      font-weight: 800;
+      color: #3178c6;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+    #e-btn { opacity: .6; cursor: not-allowed; }
+    #e-btn.enabled {
+      opacity: 1;
+      cursor: pointer;
+      border-color: #ffc6da;
+      color: #e64c7d;
+      background: radial-gradient(circle at 30% 30%, #fff, #ffd9ec);
+    }
+
+    @media (max-width: 480px) {
+      :root {
+        --btn-size: clamp(40px, 12vw, 56px);
+        --ctrl-offset: clamp(8px, 4vw, 16px);
+      }
+      #dialogue-box { padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="game" role="main" aria-label="게임 영역">
+
+      <canvas id="mapCanvas" width="860" height="460" aria-label="게임 지도"></canvas>
+
+      <div id="dialogue-box" role="dialog" aria-hidden="true" aria-live="polite">
+        <div id="closeness-info">친밀도: 0</div>
+        <div id="npc-text"></div>
+        <div id="choices"></div>
+        <div id="z-prompt">:(</div>
+      </div>
+
+      <button id="exit-btn" onclick="window.location.href='mainroom.html'">나가기</button>
+
+      <div id="controls">
+        <div id="joystick" role="application" aria-label="조이스틱 컨트롤" tabindex="0">
+          <div id="stick"></div>
+        </div>
+        <div id="action-area">
+          <button id="e-btn" class="action-btn" aria-label="상호작용 (E)" disabled>E</button>
+          
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const canvas = document.getElementById('mapCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const WORLD_W = 2400, WORLD_H = H;
+
+    const player = {
+      x: 420, y: H - 110, r: 10, speed: 3,
+      facing: 'right', isHappy: false, happyFrames: 0, wobbleT: 0
+    };
+
+    function createFriends(){
+      return [
+        { name:'친구1', x:720, y:H-110, r:10, closeness:0, forgiving:false,
+          dialogues:["와, 안왔던 길이네! 기분좋아.","요즘 뭐 재밌는거 해?","함께 걸으니 좋다!","다음에 또 같이 가자!"],
+          dialogIdx:0, gender:'female', hue:340 },
+        { name:'친구2', x:1080, y:H-110, r:10, closeness:0, forgiving:false,
+          dialogues:["안녕! 오늘 컨디션 어때?","새로운 가게 생겼더라구.","너랑 이야기하면 시간 가는 줄 몰라.","다음에 또 보자!"],
+          dialogIdx:0, gender:'male', hue:220 },
+        { name:'친구3', x:1440, y:H-110, r:10, closeness:0, forgiving:true,
+          dialogues:["여기 경치 좋네.","이 길을 자주 걸어야겠다.","너도 그렇게 생각하지 않아?","다음에 또 보자!"],
+          dialogIdx:0, gender:'male', hue:275 }
+      ];
+    }
+    let friends = createFriends();
+    let currentFriendIndex = null, inDialogue = false, requireZToClose = false;
+    let friendlyCount = 0, inHouse = false, houseDialogDone = false, lastFriendTalked = false;
+
+    const dialogueBox = document.getElementById('dialogue-box');
+    const npcText    = document.getElementById('npc-text');
+    const choicesDiv = document.getElementById('choices');
+    const closenessInfo = document.getElementById('closeness-info');
+    const zPrompt    = document.getElementById('z-prompt');
+    const eBtn       = document.getElementById('e-btn');
+    const zBtn       = document.getElementById('z-btn');
+
+    let keyLeft = false, keyRight = false;
+
+    // 배경 소품
+    const rng = mulberry32(1337);
+    const clouds = Array.from({length:12}, _=>({
+      x: rng()*WORLD_W, y:40 + rng()*120,
+      s:0.6 + rng()*0.9, v:0.2 + rng()*0.3
+    }));
+    const flowers = Array.from({length:120}, _=>({
+      x:80 + rng()*(WORLD_W-160),
+      y:H-60 + rng()*24, t:rng()
+    }));
+
+    function mulberry32(a){return function(){
+      var t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t>>>15, t | 1);
+      t ^= t + Math.imul(t ^ t>>>7, t | 61);
+      return ((t ^ t>>>14)>>>0)/4294967296;
+    }}
+
+    function cameraX(){
+      let cam = player.x - W/2;
+      return Math.max(0, Math.min(cam, WORLD_W - W));
+    }
+    function clampToWorld(px, py, r){
+      let maxX = lastFriendTalked ? WORLD_W - r : 1800;
+      const nx = Math.max(r, Math.min(px, maxX));
+      const ny = Math.max(r, Math.min(py, WORLD_H - r));
+      return { x: nx, y: ny };
+    }
+    function overlapAny(x,y,ignore=-1){
+      for(let i=0;i<friends.length;i++){
+        if(i===ignore) continue;
+        const fr = friends[i];
+        if(Math.hypot(x-fr.x, y-fr.y) < player.r + fr.r) return true;
+      }
+      return false;
+    }
+
+    function tryMove(dx, dy){
+      if(dx!==0){
+        let {x:nx, y:ny} = { x: player.x+dx, y: player.y+dy };
+        ({x:nx, y:ny} = clampToWorld(nx, ny, player.r));
+        if(!overlapAny(nx,ny)){
+          player.x = nx; player.y = ny;
+        } else {
+          if(!overlapAny(player.x+dx, player.y)){
+            ({x:player.x, y:player.y} = clampToWorld(player.x+dx, player.y, player.r));
+          } else if(!overlapAny(player.x, player.y+dy)){
+            ({x:player.x, y:player.y} = clampToWorld(player.x, player.y+dy, player.r));
+          }
+        }
+        player.facing = dx>0 ? 'right' : 'left';
+      } else {
+        if(keyLeft)  player.facing='left';
+        if(keyRight) player.facing='right';
+      }
+    }
+
+    function updateProximity(){
+      if(inHouse){ setEEnabled(false); return; }
+      currentFriendIndex = null;
+      for(let i=0;i<friends.length;i++){
+        const fr = friends[i];
+        if(Math.hypot(player.x-fr.x, player.y-fr.y) <= player.r+fr.r+8){
+          currentFriendIndex = i;
+          break;
+        }
+      }
+      setEEnabled(currentFriendIndex !== null);
+    }
+    function setEEnabled(on){
+      if(on){ eBtn.disabled=false; eBtn.classList.add('enabled'); }
+      else  { eBtn.disabled=true;  eBtn.classList.remove('enabled'); }
+    }
+
+    function openDialogue(idx){
+      if(idx==null) return;
+      inDialogue = true;
+      dialogueBox.style.display = 'block';
+      dialogueBox.setAttribute('aria-hidden','false');
+      requireZToClose = false;
+      zPrompt.style.display = 'none';
+
+      const fr = friends[idx];
+      closenessInfo.innerText = `${fr.name} 친밀도: ${fr.closeness}`;
+      const line = fr.dialogues[fr.dialogIdx] || '';
+      npcText.innerText = line;
+      choicesDiv.innerHTML = `
+        <button onclick="choose(0)">좋아!</button>
+        <button onclick="choose(1)">그냥 그래</button>
+        <button onclick="choose(2)">별로야</button>
+      `;
+    }
+
+    window.choose = function(option){
+      const idx = currentFriendIndex;
+      if(idx==null) return;
+      const fr = friends[idx];
+      let unexpected = fr.name==='친구3' ? Math.random()<.1 : true;
+      let finalAction = unexpected
+        ? [0,1,2].filter(i=>i!==option)[Math.floor(Math.random()*2)]
+        : option;
+
+      let delta = finalAction===0 ? 1 : finalAction===2 ? -1 : 0;
+      if(unexpected && !fr.forgiving) delta--;
+      if(fr.name==='친구3' && delta<0) delta = 2;
+      fr.closeness += delta;
+
+      npcText.innerText = unexpected ? '앗, 다른 행동을 해버렸어요!' : '좋은 선택이었어요!';
+      choicesDiv.innerHTML =
+	 `<button style=background-color:whtie;>                 </button>
+	  <button onclick="continueDialogue()">대화 이어가기</button>`;
+      closenessInfo.innerText = `${fr.name} 친밀도: ${fr.closeness}`;
+    }
+
+    window.continueDialogue = function(){
+      const idx = currentFriendIndex;
+      if(idx==null) return closeDialogue();
+      const fr = friends[idx];
+      fr.dialogIdx++;
+
+      if(fr.dialogIdx >= fr.dialogues.length){
+        const name = fr.name;
+        if(fr.closeness >= 2){
+          npcText.innerText = '다음에 또 보자';
+          friendlyCount++;
+          spawnHearts(player.x, player.y, 10);
+          player.isHappy = true; player.happyFrames = 70;
+          if(name==='친구3') lastFriendTalked = true;
+        } else {
+          npcText.innerText = '저리가';
+        }
+        friends.splice(idx,1);
+        currentFriendIndex = null;
+
+        if(name==='친구2' && friendlyCount===0){
+          npcText.innerText = '사람들과 친해지는 게 쉽지 않네..';
+          requireZToClose = true; zPrompt.style.display = 'block';
+        } else {
+          choicesDiv.innerHTML = `<button onclick="closeDialogue()">확인</button>`;
+          zPrompt.style.display = 'none';
+        }
+        closenessInfo.innerText = `친해진 사람: ${friendlyCount}`;
+        setEEnabled(false);
+      } else {
+        openDialogue(idx);
+      }
+    }
+
+    window.closeDialogue = function(){
+      inDialogue = false;
+      dialogueBox.style.display = 'none';
+      dialogueBox.setAttribute('aria-hidden','true');
+      requireZToClose = false;
+      zPrompt.style.display = 'none';
+      updateProximity();
+    }
+
+    function checkHouseEntry(){
+      if(!lastFriendTalked) return false;
+      if(player.x >= 2000 && !inHouse){
+        inHouse = true;
+        openHouseDialogue();
+        return true;
+      }
+      return false;
+    }
+    function openHouseDialogue(){
+      inDialogue = true; houseDialogDone = false;
+      dialogueBox.style.display = 'block';
+      dialogueBox.setAttribute('aria-hidden','false');
+      closenessInfo.innerText = '동글이';
+      zPrompt.style.display = 'none'; choicesDiv.innerHTML = '';
+      npcText.innerText = friendlyCount===0
+        ? "오늘도 친구를 못사귀었어"
+        : "나도 친구가 생겼어!";
+    }
+    function finishHouseDialogue(){
+      inDialogue = false; inHouse = false; houseDialogDone = true;
+      dialogueBox.style.display = 'none';
+      dialogueBox.setAttribute('aria-hidden','true');
+    }
+
+    function drawBackground(cam){
+      // 하늘
+      const skyGrad = ctx.createLinearGradient(0,0,0,H);
+      skyGrad.addColorStop(0,'#fff1f6');
+      skyGrad.addColorStop(.6,'#eaf6ff');
+      skyGrad.addColorStop(1,'#def7ff');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0,0,W,H);
+
+      // 구름
+      clouds.forEach(c => {
+        const cx = c.x - cam*0.3;
+        const x = ((cx % (WORLD_W+300)) + WORLD_W+300) % (WORLD_W+300) - 150;
+        drawPuffyCloud(x, c.y, 40*c.s);
+        c.x += c.v;
+        if(c.x - cam > WORLD_W+400) c.x -= WORLD_W+600;
+      });
+
+      // 땅
+      const groundY = Math.floor(player.y+2) - 10;
+      const g = ctx.createLinearGradient(0,groundY,0,H);
+      g.addColorStop(0,'#d3ffd1');
+      g.addColorStop(1,'#c1f5bd');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, groundY, W, H-groundY);
+
+      // 풀 패턴
+      ctx.globalAlpha = .25;
+      ctx.fillStyle = '#9be19a';
+      for(let x = -((cam)%24); x < W; x += 24){
+        ctx.fillRect(x, groundY+8, 2, 14);
+        ctx.fillRect(x+8, groundY+18, 2, 10);
+        ctx.fillRect(x+16, groundY+5, 2, 12);
+      }
+      ctx.globalAlpha = 1;
+
+      // 꽃
+      flowers.forEach(f => {
+        const x = Math.floor(f.x - cam);
+        if(x < -20 || x > W+20) return;
+        drawTinyFlower(x, f.y, f.t);
+      });
+
+      // 집
+      drawCuteHouse(1880 - cam, H-100);
+    }
+
+    function drawPuffyCloud(x,y,r){
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,.95)';
+      ctx.beginPath();
+      circle(x,y,r);
+      circle(x+r*0.8, y-r*0.3, r*0.85);
+      circle(x+r*1.6, y, r*0.75);
+      circle(x+r*0.5, y+r*0.2, r*0.6);
+      ctx.fill();
+      ctx.restore();
+    }
+    function drawTinyFlower(x,y,t){
+      ctx.fillStyle = '#ffd166';
+      ctx.fillRect(x,y,2,2);
+      const colors = ['#ffa3c7','#ffc6da','#b9e6ff','#c9f9b6'];
+      const c = colors[Math.floor(t*colors.length)];
+      ctx.fillStyle = c;
+      [[-2,0],[2,0],[0,-2],[0,2]].forEach(d => {
+        ctx.fillRect(x+d[0], y+d[1], 2,2);
+      });
+    }
+    function drawCuteHouse(x, baseY){
+      const w=180, h=120, r=12;
+      roundRect(x, baseY-h, w, h, r, '#fff6fb', '#ffc6da');
+      ctx.fillStyle = '#ff99b7';
+      ctx.beginPath();
+      ctx.moveTo(x-10, baseY-h+10);
+      ctx.lineTo(x+w/2, baseY-h-46);
+      ctx.lineTo(x+w+10, baseY-h+10);
+      ctx.closePath();
+      ctx.fill();
+      roundRect(x+58, baseY-h+36, 64,46,10,'#fff','#ffd9ec');
+      ctx.strokeStyle='#ffd1e6'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(x+90, baseY-h+36); ctx.lineTo(x+90, baseY-h+82);
+      ctx.moveTo(x+58, baseY-h+59); ctx.lineTo(x+122, baseY-h+59);
+      ctx.stroke();
+      drawHeart(x+20, baseY-h+28,6,'#ff6fa8');
+    }
+
+    function roundRect(x,y,w,h,r,fill,stroke){
+      ctx.beginPath();
+      ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y,x+w,y+h,r);
+      ctx.arcTo(x+w,y+h,x,y+h,r);
+      ctx.arcTo(x,y+h,x,y,r);
+      ctx.arcTo(x,y,x+w,y,r);
+      ctx.closePath();
+      if(fill){ ctx.fillStyle=fill; ctx.fill(); }
+      if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=2; ctx.stroke(); }
+    }
+    function circle(x,y,r){
+      ctx.moveTo(x+r,y);
+      ctx.arc(x,y,r,0,Math.PI*2);
+    }
+
+    function drawCuteBlob(px,py,dir,hue,blink){
+      const bob = Math.sin(player.wobbleT)*1.5;
+      ctx.fillStyle = `hsl(${hue} 100% 92%)`;
+      ctx.strokeStyle= `hsl(${hue} 65% 75%)`;
+      roundRect(px-10, py-22+bob, 20,20,8,ctx.fillStyle,ctx.strokeStyle);
+      ctx.fillStyle = `hsl(${hue} 100% 85%)`;
+      ctx.beginPath();
+      circle(px-6, py-24+bob,4);
+      circle(px+6, py-24+bob,4);
+      ctx.fill();
+
+      ctx.fillStyle='#222';
+      if(blink){
+        ctx.fillRect(px-5, py-16+bob,4,1);
+        ctx.fillRect(px+1, py-16+bob,4,1);
+      } else {
+        ctx.fillRect(px-5, py-18+bob,3,5);
+        ctx.fillRect(px+2, py-18+bob,3,5);
+      }
+      ctx.fillStyle='rgba(255,255,255,.8)';
+      ctx.fillRect(px-4, py-17+bob,1,2);
+      ctx.fillRect(px+3, py-17+bob,1,2);
+      ctx.fillStyle='rgba(255,133,170,.6)';
+      ctx.fillRect(px-8, py-13+bob,3,2);
+      ctx.fillRect(px+6, py-13+bob,3,2);
+      ctx.fillStyle='#ff6fa8';
+      if(dir==='right') ctx.fillRect(px-1, py-12+bob,4,2);
+      else              ctx.fillRect(px-3, py-12+bob,4,2);
+      ctx.fillStyle='#d9bce3';
+      ctx.fillRect(px-8, py-2+bob,6,2);
+      ctx.fillRect(px+2, py-2+bob,6,2);
+    }
+
+    function drawPlayer(cam){
+      const px = Math.floor(player.x - cam);
+      const py = Math.floor(player.y - 10);
+      const blink = (Math.floor(Date.now()/250)%24===0);
+      drawCuteBlob(px,py,player.facing,330,blink);
+    }
+    function drawFriends(cam){
+      friends.forEach(fr=>{
+        const fx = Math.floor(fr.x - cam);
+        const fy = Math.floor(fr.y - 10);
+        drawCuteBlob(fx,fy,'left',fr.hue,false);
+      });
+    }
+
+    const hearts = [];
+    function spawnHearts(x,y,count=8){
+      for(let i=0;i<count;i++){
+        hearts.push({
+          x,y,
+          vx:(Math.random()*1.2-0.6),
+          vy:-(1.2+Math.random()*1.4),
+          a:1, s:6+Math.random()*4,
+          life:60+Math.random()*30
+        });
+      }
+    }
+    function drawHeart(x,y,s,color){
+      ctx.save();
+      ctx.translate(x,y); ctx.rotate(-Math.PI/4);
+      ctx.fillStyle=color;
+      ctx.fillRect(-s/2,-s/2,s,s);
+      ctx.beginPath(); circle(0,-s/2,s/2); circle(-s/2,0,s/2); ctx.fill();
+      ctx.restore();
+    }
+    function updateHearts(cam){
+      for(let i=hearts.length-1;i>=0;i--){
+        const h=hearts[i];
+        h.x+=h.vx; h.y+=h.vy; h.vy+=0.02; h.life--;
+        if(h.life<20) h.a=h.life/20;
+        if(h.life<=0) hearts.splice(i,1);
+        ctx.globalAlpha = Math.max(0,Math.min(1,h.a));
+        drawHeart(h.x-cam,h.y-20,h.s,'#ff6fa8');
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function loop(){
+      if(!inDialogue && !inHouse){
+        if(keyLeft && !keyRight) tryMove(-player.speed,0);
+        else if(keyRight && !keyLeft) tryMove(player.speed,0);
+        checkHouseEntry();
+        updateProximity();
+      }
+
+      const cam = cameraX();
+      drawBackground(cam);
+      drawFriends(cam);
+      drawPlayer(cam);
+      updateHearts(cam);
+
+      if(player.isHappy && player.happyFrames>0){
+        player.happyFrames--;
+        const r = player.r + 34;
+        const grd = ctx.createRadialGradient(
+          player.x-cam,player.y-10,4,
+          player.x-cam,player.y-10,r
+        );
+        grd.addColorStop(0,'rgba(255,225,240,.9)');
+        grd.addColorStop(1,'rgba(255,225,240,0)');
+        ctx.fillStyle=grd;
+        ctx.beginPath(); circle(player.x-cam,player.y-10,r); ctx.fill();
+      }
+
+      player.wobbleT += 0.08;
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', e=>{
+      if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keyLeft=true;
+      if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keyRight=true;
+      if(e.key.toLowerCase()==='e'){
+        if(!eBtn.disabled && !inDialogue && currentFriendIndex!==null)
+          openDialogue(currentFriendIndex);
+      }
+      if(e.key.toLowerCase()==='z'){
+        if(inDialogue && !requireZToClose) continueDialogue();
+        else if(inDialogue && requireZToClose) closeDialogue();
+        else if(inHouse && !houseDialogDone) finishHouseDialogue();
+      }
+    });
+    window.addEventListener('keyup', e=>{
+      if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keyLeft=false;
+      if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keyRight=false;
+    });
+
+    eBtn.addEventListener('click', ()=>{
+      if(!eBtn.disabled && !inDialogue && currentFriendIndex!==null)
+        openDialogue(currentFriendIndex);
+    });
+    
+
+    const joystickEl = document.getElementById('joystick');
+    const stickEl = document.getElementById('stick');
+    let joystickActive=false, activePointerId=null;
+
+    function centerOf(rect){ return { x:rect.left+rect.width/2, y:rect.top+rect.height/2 }; }
+    function updateStick(cx, cy){
+      const rect = joystickEl.getBoundingClientRect();
+      const c = centerOf(rect);
+      const dx = cx - c.x, dy = cy - c.y;
+      const max = rect.width/2 - 12;
+      const dist = Math.hypot(dx,dy), clamped = Math.min(dist, max);
+      const ang = Math.atan2(dy, dx);
+      const sx = Math.cos(ang)*clamped, sy = Math.sin(ang)*clamped;
+      stickEl.style.transition = 'transform 0s';
+      stickEl.style.transform = `translate(${sx}px,${sy}px)`;
+
+      const normX = sx/max, th=0.3;
+      if(normX>th){ keyRight=true; keyLeft=false; }
+      else if(normX<-th){ keyLeft=true; keyRight=false; }
+      else{ keyLeft=false; keyRight=false; }
+    }
+    joystickEl.addEventListener('pointerdown', ev=>{
+      ev.preventDefault();
+      joystickEl.setPointerCapture(ev.pointerId);
+      joystickActive = true; activePointerId = ev.pointerId;
+      updateStick(ev.clientX, ev.clientY);
+    });
+    window.addEventListener('pointermove', ev=>{
+      if(!joystickActive || ev.pointerId!==activePointerId) return;
+      ev.preventDefault();
+      updateStick(ev.clientX, ev.clientY);
+    });
+    window.addEventListener('pointerup', ev=>{
+      if(!joystickActive || ev.pointerId!==activePointerId) return;
+      joystickActive = false;
+      try { joystickEl.releasePointerCapture(ev.pointerId); }
+      catch(e){}
+      activePointerId = null;
+      stickEl.style.transition = 'transform .12s ease';
+      stickEl.style.transform = 'translate(0,0)';
+      keyLeft = false; keyRight = false;
+    });
+
+    function resetGame(){
+      friends = createFriends();
+      Object.assign(player, { x:420, y:H-110, isHappy:false, happyFrames:0, facing:'right' });
+      friendlyCount = 0; lastFriendTalked = false;
+      inDialogue = false; inHouse = false; houseDialogDone = false;
+      currentFriendIndex = null; requireZToClose = false;
+      setEEnabled(false);
+      dialogueBox.style.display = 'none';
+    }
+    resetGame();
+    updateProximity();
+    loop();
+
+  })();
+  </script>
+</body>
+</html>
