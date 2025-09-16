@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시각장애 이해 교육 게임</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .level-info {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .question {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .choices-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .choice-btn {
+            padding: 20px;
+            font-size: 1.2rem;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .choice-btn:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .choice-btn:active {
+            transform: translateY(0);
+        }
+
+        .choice-btn.correct {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+
+        .choice-btn.incorrect {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
+        .result-message {
+            font-size: 1.3rem;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .result-message.correct {
+            color: #28a745;
+        }
+
+        .result-message.incorrect {
+            color: #dc3545;
+        }
+
+        .next-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .next-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .game-complete {
+            display: none;
+        }
+
+        .final-message {
+            font-size: 1.4rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .restart-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .difficulty-indicator {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+
+        /* 단계별 blur 효과 */
+        .blur-level-1 { filter: blur(0.5px); }
+        .blur-level-2 { filter: blur(1px); }
+        .blur-level-3 { filter: blur(1.5px); }
+        .blur-level-4 { filter: blur(2px); }
+        .blur-level-5 { filter: blur(2.5px); }
+        .blur-level-6 { filter: blur(3px); }
+        .blur-level-7 { filter: blur(3.5px); }
+        .blur-level-8 { filter: blur(4px); }
+        .blur-level-9 { filter: blur(4.5px); }
+        .blur-level-10 { filter: blur(5px); }
+
+        /* 반응형 디자인 */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 20px;
+            }
+
+            .title {
+                font-size: 1.5rem;
+            }
+
+            .question {
+                font-size: 1.2rem;
+            }
+
+            .choices-container {
+                grid-template-columns: 1fr;
+            }
+
+            .choice-btn {
+                padding: 15px;
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .game-container {
+                padding: 15px;
+            }
+
+            .title {
+                font-size: 1.3rem;
+            }
+
+            .question {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1 class="title">시각장애 이해 교육 게임</h1>
+            <div class="level-info">
+                <span>레벨: <span id="current-level">1</span> / 10</span>
+                <span style="margin-left: 20px;">점수: <span id="score">0</span></span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 10%"></div>
+            </div>
+        </div>
+
+        <div id="game-area">
+            <div class="difficulty-indicator" id="difficulty-indicator">
+                레벨 1: 텍스트가 약간 흐려집니다
+            </div>
+            
+            <div class="question" id="question">
+                다음 중 '사과'를 의미하는 단어는?
+            </div>
+
+            <div class="choices-container" id="choices-container">
+                <button class="choice-btn blur-level-1" data-answer="apple">Apple</button>
+                <button class="choice-btn blur-level-1" data-answer="banana">Banana</button>
+                <button class="choice-btn blur-level-1" data-answer="orange">Orange</button>
+                <button class="choice-btn blur-level-1" data-answer="grape">Grape</button>
+            </div>
+
+            <div class="result-message" id="result-message" style="display: none;"></div>
+            <button class="next-btn" id="next-btn" style="display: none;">다음 문제</button>
+        </div>
+
+        <div class="game-complete" id="game-complete">
+            <div class="final-message">
+                🎉 게임 완료! 🎉<br>
+                최종 점수: <span id="final-score">0</span> / 10<br><br>
+		<h2>시각장애인이 겪는 어려움을 조금이나마 이해하셨나요?</h2><br><br>
+                *다수의 사람들이 모든 시각장애인이<br>완전히 안 보인다고 생각합니다.
+	 <br>하지만 실제로는 많은 시각장애인이<br> 잔존 시력을 가지고 있으며,
+	<br>이를 활용하여 생활하고 있습니다.*
+            </div>
+            <button class="restart-btn" onclick="restartGame()">다시 시작</button>
+		<button class="restart-btn" onclick="goMainroom()">나가기</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            { question: "다음 중 '사과'를 의미하는 단어는?", choices: ["Apple", "Banana", "Orange", "Grape"], correct: "Apple" },
+            { question: "다음 중 '물'을 의미하는 단어는?", choices: ["Would", "Water", "acid", "Air"], correct: "Water" },
+            { question: "다음 중 '집'을 의미하는 단어는?", choices: ["Car", "House", "Tree", "Book"], correct: "House" },
+            { question: "다음 중 '태양'을 의미하는 단어는?", choices: ["Soon", "Star", "Sun", "See"], correct: "Sun" },
+            { question: "다음 중 '고양이'를 의미하는 단어는?", choices: ["Cup", "Cat", "Cap", "Cut"], correct: "Cat" },
+            { question: "다음 중 '책'을 의미하는 단어는?", choices: ["Boom", "Duck", "Book", "Desk"], correct: "Book" },
+            { question: "다음 중 '음악'을 의미하는 단어는?", choices: ["Mouse", "Music", "Movie", "Game"], correct: "Music" },
+            { question: "다음 중 '꽃'을 의미하는 단어는?", choices: ["Flour", "Flex", "Flower", "Seed"], correct: "Flower" },
+            { question: "다음 중 '시간'을 의미하는 단어는?", choices: ["Distance", "Time", "Team", "Tax"], correct: "Time" },
+            { question: "다음 중 '사랑'을 의미하는 단어는?", choices: ["Log", "Fear", "Love", "Loop"], correct: "Love" }
+        ];
+
+        let currentLevel = 1;
+        let score = 0;
+        let gameEnded = false;
+
+        const difficultyMessages = {
+            1: "레벨 1: 텍스트가 약간 흐려집니다",
+            2: "레벨 2: 텍스트가 조금 더 흐려집니다",
+            3: "레벨 3: 텍스트 읽기가 어려워집니다",
+            4: "레벨 4: 텍스트가 상당히 흐려집니다",
+            5: "레벨 5: 텍스트 구분이 힘들어집니다",
+            6: "레벨 6: 텍스트가 매우 흐려집니다",
+            7: "레벨 7: 텍스트를 거의 볼 수 없습니다",
+            8: "레벨 8: 텍스트가 심하게 흐려집니다",
+            9: "레벨 9: 텍스트 인식이 거의 불가능합니다",
+            10: "레벨 10: 최고 난이도 - 텍스트가 완전히 흐려집니다"
+        };
+
+        function updateDisplay() {
+            document.getElementById('current-level').textContent = currentLevel;
+            document.getElementById('score').textContent = score;
+            document.getElementById('progress-fill').style.width = (currentLevel * 10) + '%';
+            document.getElementById('difficulty-indicator').textContent = difficultyMessages[currentLevel];
+            
+            const currentQuestion = questions[currentLevel - 1];
+            document.getElementById('question').textContent = currentQuestion.question;
+            
+            const choicesContainer = document.getElementById('choices-container');
+            choicesContainer.innerHTML = '';
+            
+            currentQuestion.choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.className = `choice-btn blur-level-${currentLevel}`;
+                button.textContent = choice;
+                button.dataset.answer = choice;
+                button.onclick = () => selectAnswer(choice, currentQuestion.correct);
+                choicesContainer.appendChild(button);
+            });
+        }
+
+        function selectAnswer(selected, correct) {
+            if (gameEnded) return;
+            
+            const buttons = document.querySelectorAll('.choice-btn');
+            const resultMessage = document.getElementById('result-message');
+            const nextBtn = document.getElementById('next-btn');
+            
+            buttons.forEach(btn => {
+                btn.onclick = null;
+                if (btn.dataset.answer === correct) {
+                    btn.classList.add('correct');
+                } else if (btn.dataset.answer === selected && selected !== correct) {
+                    btn.classList.add('incorrect');
+                }
+            });
+            
+            if (selected === correct) {
+                score++;
+                resultMessage.textContent = '정답입니다! 🎉';
+                resultMessage.className = 'result-message correct';
+            } else {
+                resultMessage.textContent = `틀렸습니다. 정답은 '${correct}'입니다.`;
+                resultMessage.className = 'result-message incorrect';
+            }
+            
+            resultMessage.style.display = 'block';
+            nextBtn.style.display = 'inline-block';
+            
+            document.getElementById('score').textContent = score;
+        }
+
+        function nextQuestion() {
+            if (currentLevel >= 10) {
+                endGame();
+                return;
+            }
+            
+            currentLevel++;
+            gameEnded = false;
+            
+            document.getElementById('result-message').style.display = 'none';
+            document.getElementById('next-btn').style.display = 'none';
+            
+            updateDisplay();
+        }
+
+        function endGame() {
+            document.getElementById('game-area').style.display = 'none';
+            document.getElementById('game-complete').style.display = 'block';
+            document.getElementById('final-score').textContent = score;
+        }
+	function goMainroom(){
+		 window.location.href = "mainroom.html";
+
+	}
+
+        function restartGame() {
+            currentLevel = 1;
+            score = 0;
+            gameEnded = false;
+            
+            document.getElementById('game-area').style.display = 'block';
+            document.getElementById('game-complete').style.display = 'none';
+            document.getElementById('result-message').style.display = 'none';
+            document.getElementById('next-btn').style.display = 'none';
+            
+            updateDisplay();
+        }
+
+        document.getElementById('next-btn').onclick = nextQuestion;
+
+        // 게임 시작
+        updateDisplay();
+    </script>
+</body>
+</html>
